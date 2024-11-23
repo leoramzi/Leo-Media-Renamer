@@ -25,7 +25,7 @@ A Python script that automatically adds IMDb codes to your movie and TV show fol
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/Leo-Media-Renamer.git
+git clone https://github.com/leoramzi/Leo-Media-Renamer
 cd Leo-Media-Renamer
 ```
 
