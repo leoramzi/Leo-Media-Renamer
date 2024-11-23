@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Leo Media Renamer - A Media Library IMDb Code Renamer
+Version: 0.0.1
 
 This script renames movie and TV show folders by adding IMDb codes to their names.
 It processes folders formatted as "Name (Year)" and adds the IMDb code in the format
@@ -18,6 +19,7 @@ from imdb import Cinemagoer
 from datetime import datetime
 
 # ============= CONFIGURATION =============
+VERSION = "0.0.1"
 # Logging configuration
 LOG_DIR = "MediaRenamerLog"
 # =======================================
@@ -42,7 +44,7 @@ def setup_logging():
         ]
     )
     
-    logging.info("=== Leo Media Renamer Session Started ===")
+    logging.info(f"=== Leo Media Renamer v{VERSION} Session Started ===")
     return log_file
 
 def parse_media_folder(folder_name):
@@ -224,7 +226,7 @@ if __name__ == "__main__":
     log_file = setup_logging()
     
     try:
-        print("=== Leo Media Renamer ===")
+        print(f"=== Leo Media Renamer v{VERSION} ===")
         logging.info("Starting new renaming session")
         
         # Get media type choice from user
