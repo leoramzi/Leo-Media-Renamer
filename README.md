@@ -2,7 +2,7 @@
 
 A Python script that automatically adds IMDb codes to your movie and TV show folder names. Perfect for organizing your media library with proper IMDb identifiers.
 
-![Version](https://img.shields.io/badge/version-0.0.1-blue.svg)
+![Version](https://img.shields.io/badge/version-0.0.2-blue.svg)
 
 ## Features
 
@@ -12,6 +12,10 @@ A Python script that automatically adds IMDb codes to your movie and TV show fol
 - Detailed logging of all operations
 - Support for close year matches for TV shows (±1 year)
 - Skips already tagged folders
+- Comprehensive end-of-operation reporting with:
+  - Operation statistics
+  - List of skipped items with reasons
+  - List of warnings and errors
 
 ## Requirements
 - Python 3.x
@@ -46,6 +50,10 @@ The script will:
    - Type 's' to skip the current folder and continue
    - Type 'o' to stop processing completely
 5. Generate a detailed log file of all operations in the "MediaRenamerLog" folder
+6. Display a comprehensive report showing:
+   - Operation statistics
+   - List of skipped items with reasons
+   - List of warnings and errors
 
 ### Search Behavior
 - For Movies: Searches and matches exact movie titles with the same year
@@ -65,16 +73,36 @@ Do you want to (s)kip this item or st(o)p the process? (s/o):
 - Enter 'o' to stop the entire process
 All decisions are logged in the log file for reference.
 
-### Logging
-The script creates detailed logs in the "MediaRenamerLog" folder. Each run creates a new log file with timestamp (e.g., `leo_media_renamer_20240315_143022.log`). The logs include:
-- Date and time of each operation
-- All folder renames (before and after)
-- Detailed IMDb search results and matches
-- Search process details (number of results, filtering steps)
-- User decisions for skipped items
-- Process termination if user chose to stop
-- Any errors encountered
-- Session statistics (total processed, renamed, skipped, errors)
+### Logging and Reporting
+The script provides two types of feedback:
+
+1. Log Files:
+- Created in the "MediaRenamerLog" folder
+- Named with timestamp (e.g., `leo_media_renamer_20240315_143022.log`)
+- Contains detailed operation logs including:
+  - Date and time of each operation
+  - All folder renames (before and after)
+  - Detailed IMDb search results and matches
+  - Search process details
+  - User decisions
+  - Errors and warnings
+
+2. End-of-Operation Report:
+```
+=== Operation Report ===
+Total folders processed: X
+Successfully renamed: X
+Skipped: X
+Errors: X
+
+=== Skipped Items ===
+- Already tagged: Movie Name (Year)
+- Non-directory: File Name
+
+=== Warnings ===
+- Invalid format: Incorrect Folder Name
+- No IMDb match (skipped): Movie Name (Year)
+```
 
 ### Example
 If you have folder structures like:

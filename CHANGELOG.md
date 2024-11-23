@@ -2,6 +2,14 @@
 
 All notable changes to Leo Media Renamer will be documented in this file.
 
+## [0.0.2] - 2024-03-15
+
+### Added
+- Detailed end-of-operation reporting with three sections:
+  - Operation statistics (processed, renamed, skipped, errors)
+  - Comprehensive list of skipped items with reasons
+  - Detailed list of warnings and errors encountered
+
 ## [0.0.1] - 2024-03-15
 
 ### Added

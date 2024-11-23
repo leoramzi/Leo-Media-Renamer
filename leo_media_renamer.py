@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Leo Media Renamer - A Media Library IMDb Code Renamer
-Version: 0.0.1
+Version: 0.0.2
 
 This script renames movie and TV show folders by adding IMDb codes to their names.
 It processes folders formatted as "Name (Year)" and adds the IMDb code in the format
@@ -17,9 +17,10 @@ import logging
 import sys
 from imdb import Cinemagoer
 from datetime import datetime
+from typing import Dict, List, Tuple
 
 # ============= CONFIGURATION =============
-VERSION = "0.0.1"
+VERSION = "0.0.2"
 # Logging configuration
 LOG_DIR = "MediaRenamerLog"
 # =======================================
@@ -113,11 +114,11 @@ def get_imdb_id(name, year, media_type='movie'):
         logging.error(f"Error searching for {name}: {str(e)}")
         return None
 
-def rename_media_folders(directory, media_type='movie'):
+def rename_media_folders(directory, media_type='movie') -> Tuple[Dict[str, int], List[str], List[str]]:
     """Process all media folders in the given directory."""
     if not os.path.exists(directory):
         logging.error(f"Directory not found: {directory}")
-        return
+        return {'processed': 0, 'renamed': 0, 'skipped': 0, 'errors': 0}, [], []
 
     logging.info(f"Starting to process {media_type} folders in: {directory}")
     
@@ -128,6 +129,10 @@ def rename_media_folders(directory, media_type='movie'):
         'skipped': 0,
         'errors': 0
     }
+    
+    # Track skipped items and warnings
+    skipped_items = []
+    warnings = []
 
     for folder_name in os.listdir(directory):
         folder_path = os.path.join(directory, folder_name)
@@ -136,11 +141,13 @@ def rename_media_folders(directory, media_type='movie'):
         # Skip if not a directory or already has IMDb ID
         if not os.path.isdir(folder_path):
             logging.debug(f"Skipping non-directory: {folder_name}")
+            skipped_items.append(f"Non-directory: {folder_name}")
             stats['skipped'] += 1
             continue
         
         if "{" in folder_name:
             logging.info(f"Skipping already tagged folder: {folder_name}")
+            skipped_items.append(f"Already tagged: {folder_name}")
             stats['skipped'] += 1
             continue
 
@@ -148,6 +155,7 @@ def rename_media_folders(directory, media_type='movie'):
         media_name, year = parse_media_folder(folder_name)
         if not media_name or not year:
             logging.warning(f"Skipping {folder_name} - Invalid format")
+            warnings.append(f"Invalid format: {folder_name}")
             stats['skipped'] += 1
             continue
 
@@ -163,14 +171,10 @@ def rename_media_folders(directory, media_type='movie'):
             if decision == 'o':
                 logging.info("User chose to stop the process")
                 print("\nStopping the process as requested.")
-                # Log final statistics before stopping
-                logging.info("\nOperation Statistics (Incomplete - User Stopped):")
-                logging.info(f"Total folders processed: {stats['processed']}")
-                logging.info(f"Successfully renamed: {stats['renamed']}")
-                logging.info(f"Skipped: {stats['skipped']}")
-                logging.info(f"Errors: {stats['errors']}")
-                return
+                warnings.append(f"No IMDb match (process stopped): {folder_name}")
+                return stats, skipped_items, warnings
             
+            warnings.append(f"No IMDb match (skipped): {folder_name}")
             stats['skipped'] += 1
             continue
 
@@ -185,14 +189,10 @@ def rename_media_folders(directory, media_type='movie'):
             stats['renamed'] += 1
         except Exception as e:
             logging.error(f"Error renaming {folder_name}: {str(e)}")
+            warnings.append(f"Rename error: {folder_name} ({str(e)})")
             stats['errors'] += 1
 
-    # Log statistics
-    logging.info("\nOperation Statistics:")
-    logging.info(f"Total folders processed: {stats['processed']}")
-    logging.info(f"Successfully renamed: {stats['renamed']}")
-    logging.info(f"Skipped: {stats['skipped']}")
-    logging.info(f"Errors: {stats['errors']}")
+    return stats, skipped_items, warnings
 
 def get_media_type():
     """Get user's choice of media type."""
@@ -221,6 +221,24 @@ def get_media_path():
         else:
             print("Invalid path. Please enter a valid directory path.")
 
+def print_report(stats: Dict[str, int], skipped_items: List[str], warnings: List[str]):
+    """Print the operation report with skipped items and warnings."""
+    print("\n=== Operation Report ===")
+    print(f"Total folders processed: {stats['processed']}")
+    print(f"Successfully renamed: {stats['renamed']}")
+    print(f"Skipped: {stats['skipped']}")
+    print(f"Errors: {stats['errors']}")
+
+    if skipped_items:
+        print("\n=== Skipped Items ===")
+        for item in skipped_items:
+            print(f"- {item}")
+
+    if warnings:
+        print("\n=== Warnings ===")
+        for warning in warnings:
+            print(f"- {warning}")
+
 if __name__ == "__main__":
     # Setup logging
     log_file = setup_logging()
@@ -236,7 +254,10 @@ if __name__ == "__main__":
         media_path = get_media_path()
         
         # Process the media folders
-        rename_media_folders(media_path, media_type)
+        stats, skipped_items, warnings = rename_media_folders(media_path, media_type)
+        
+        # Print the report
+        print_report(stats, skipped_items, warnings)
         
         logging.info("Session completed successfully")
         print(f"\nOperation complete! Log file created at: {log_file}")
