@@ -2,13 +2,15 @@
 
 A Python script that automatically adds IMDb codes to your movie and TV show folder names. Perfect for organizing your media library with proper IMDb identifiers.
 
-![Version](https://img.shields.io/badge/version-0.0.2-blue.svg)
+![Version](https://img.shields.io/badge/version-0.0.4-blue.svg)
 
 ## Features
 
 - Renames both movie and TV show folders
 - Adds IMDb codes in a clean format: "Name (Year) {IMDb-ID}"
-- Interactive handling of unmatched items
+- Batch processing with customizable batch size
+- Interactive menu system with exit options
+- Post-completion options to start over or exit
 - Detailed logging of all operations
 - Support for close year matches for TV shows (±1 year)
 - Skips already tagged folders
@@ -25,7 +27,7 @@ A Python script that automatically adds IMDb codes to your movie and TV show fol
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/leoramzi/Leo-Media-Renamer
+git clone https://github.com/yourusername/Leo-Media-Renamer.git
 cd Leo-Media-Renamer
 ```
 
@@ -42,18 +44,46 @@ python leo_media_renamer.py
 ```
 
 The script will:
-1. Ask you to choose the type of media (Movies or TV Shows)
-2. Prompt you to enter the path to your media library
-3. Process all media folders and add IMDb codes to their names
-4. If it can't find an IMDb match for any folder:
-   - Ask if you want to skip that folder or stop the entire process
-   - Type 's' to skip the current folder and continue
-   - Type 'o' to stop processing completely
-5. Generate a detailed log file of all operations in the "MediaRenamerLog" folder
-6. Display a comprehensive report showing:
-   - Operation statistics
-   - List of skipped items with reasons
-   - List of warnings and errors
+1. Present initial menu:
+   ```
+   What would you like to do?
+   1. Process Movies
+   2. Process TV Shows
+   3. Exit
+   ```
+
+2. If you choose to process media:
+   - Prompt for the media library path
+   - Ask for batch size:
+     - Enter 0 to process all items at once
+     - Enter a number (e.g., 50) to process that many items at a time
+   - Process the folders in batches (if specified):
+     - Shows progress for current batch
+     - Asks for confirmation before proceeding to next batch
+
+3. After completion, present options:
+   ```
+   What would you like to do next?
+   1. Start a new renaming session
+   2. Exit
+   ```
+
+### Batch Processing
+The script supports processing files in batches:
+```
+Enter batch size (0 for all at once): 50
+
+Processing batch 1 (items 1 to 50 of 150)
+[Processing details...]
+
+Batch 1 complete:
+Processed: 50
+Renamed: 45
+Skipped: 3
+Errors: 2
+
+Do you want to process the next batch? (y/n):
+```
 
 ### Search Behavior
 - For Movies: Searches and matches exact movie titles with the same year
@@ -147,6 +177,9 @@ D:\TV Shows\
 - The script validates the provided path before processing
 - You can stop the process at any time when encountering an error
 - For TV shows, the script considers shows within one year of the target year if an exact match isn't found
+- Batch processing allows for better control over large libraries
+- You can exit the program at any time from the main menu
+- After completing a session, you can start a new one or exit
 
 ## Version History
 See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
