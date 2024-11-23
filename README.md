@@ -2,6 +2,8 @@
 
 A Python script that automatically adds IMDb codes to your movie and TV show folder names. Perfect for organizing your media library with proper IMDb identifiers.
 
+![Version](https://img.shields.io/badge/version-0.0.1-blue.svg)
+
 ## Features
 
 - Renames both movie and TV show folders
@@ -118,8 +120,11 @@ D:\TV Shows\
 - You can stop the process at any time when encountering an error
 - For TV shows, the script considers shows within one year of the target year if an exact match isn't found
 
+## Version History
+See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
+
 ## Contributing
 Feel free to open issues or submit pull requests with improvements.
 
 ## License
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
