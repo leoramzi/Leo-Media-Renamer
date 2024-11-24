@@ -8,7 +8,7 @@ It processes folders formatted as "Name (Year)" and adds the IMDb code in the fo
 "Name (Year) {IMDb-ID}".
 
 Author: Leo
-GitHub: https://github.com/yourusername/Leo-Media-Renamer
+GitHub: https://github.com/leoramzi/Leo-Media-Renamer
 """
 
 import os
