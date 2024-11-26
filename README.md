@@ -2,12 +2,21 @@
 
 A Python script that automatically adds IMDb codes to your movie and TV show folder names. Perfect for organizing your media library with proper IMDb identifiers.
 
-![Version](https://img.shields.io/badge/version-0.0.4-blue.svg)
+![Version](https://img.shields.io/badge/version-0.0.5-blue.svg)
 
 ## Features
 
 - Renames both movie and TV show folders
 - Adds IMDb codes in a clean format: "Name (Year) {IMDb-ID}"
+- Smart IMDb verification:
+  - Optional IMDb verification with user prompt
+  - Intelligent title comparison (ignores colon differences)
+  - Multiple options for mismatches (skip/use IMDb/exit)
+- Movie file handling:
+  - Renames movie files with quality information
+  - Preserves poster files automatically
+  - Renames matching subtitle files
+  - Optional cleanup of other files
 - Batch processing with customizable batch size
 - Interactive menu system with exit options
 - Post-completion options to start over or exit
@@ -47,19 +56,21 @@ The script will:
 1. Present initial menu:
    ```
    What would you like to do?
-   1. Process Movies
-   2. Process TV Shows
-   3. Exit
+   1. Rename Movie - Folders
+   2. Rename Movie - Files
+   3. TV Shows - Folders
+   4. Exit
    ```
 
 2. If you choose to process media:
-   - Prompt for the media library path
-   - Ask for batch size:
+   - Prompt for IMDb verification (for movie files)
+   - Ask for media library path
+   - For folders: Ask for batch size
      - Enter 0 to process all items at once
      - Enter a number (e.g., 50) to process that many items at a time
-   - Process the folders in batches (if specified):
+   - Process the items:
      - Shows progress for current batch
-     - Asks for confirmation before proceeding to next batch
+     - Asks for confirmation when needed
 
 3. After completion, present options:
    ```
@@ -67,6 +78,21 @@ The script will:
    1. Start a new renaming session
    2. Exit
    ```
+
+### IMDb Verification
+When IMDb verification is enabled:
+```
+IMDb data mismatch for: Movie Name (2024)
+IMDb title: Actual Movie Name (2024)
+
+Options:
+s - Skip this movie
+i - Use IMDb title
+e - Exit to main menu
+```
+- Enter 's' to skip this movie and continue
+- Enter 'i' to use the IMDb title
+- Enter 'e' to exit to main menu
 
 ### Batch Processing
 The script supports processing files in batches:
@@ -86,7 +112,10 @@ Do you want to process the next batch? (y/n):
 ```
 
 ### Search Behavior
-- For Movies: Searches and matches exact movie titles with the same year
+- For Movies: 
+  - Searches and matches exact movie titles with the same year
+  - Intelligently handles title differences (e.g., colons)
+  - Provides options for mismatches
 - For TV Shows: 
   - Searches specifically for TV series and mini-series
   - Matches exact year first
@@ -180,6 +209,7 @@ D:\TV Shows\
 - Batch processing allows for better control over large libraries
 - You can exit the program at any time from the main menu
 - After completing a session, you can start a new one or exit
+- Poster files (named "poster" with common image extensions) are automatically preserved
 
 ## Version History
 See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.

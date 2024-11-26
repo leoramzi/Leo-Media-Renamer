@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Leo Media Renamer - A Media Library IMDb Code Renamer
-Version: 0.0.4
+Version: 0.0.5
 
 This script renames movie and TV show folders by adding IMDb codes to their names.
 It processes folders formatted as "Name (Year)" and adds the IMDb code in the format
@@ -20,7 +20,7 @@ from datetime import datetime
 from typing import Dict, List, Tuple, Optional
 
 # ============= CONFIGURATION =============
-VERSION = "0.0.4"
+VERSION = "0.0.5"
 # Logging configuration
 LOG_DIR = "MediaRenamerLog"
 
@@ -30,15 +30,15 @@ SOURCES = ['HDTV', 'WEBDL', 'WEBRip', 'Bluray', 'Remux', 'BR-DISK', 'Raw-HD', 'B
 
 # Special characters replacement
 SPECIAL_CHARS = {
-    ':': ' - ',
-    '/': ' - ',
-    '\\': ' - ',
-    '*': ' - ',
-    '?': ' - ',
-    '"': ' - ',
-    '<': ' - ',
-    '>': ' - ',
-    '|': ' - ',
+    ':': ' -',
+    '/': ' -',
+    '\\': ' -',
+    '*': ' -',
+    '?': ' -',
+    '"': ' -',
+    '<': ' -',
+    '>': ' -',
+    '|': ' -',
 }
 # =======================================
 
@@ -128,27 +128,31 @@ def extract_imdb_id(folder_name: str) -> Optional[str]:
         return match.group(1)
     return None
 
-def verify_imdb_data(ia: Cinemagoer, imdb_id: str, name: str, year: int) -> bool:
+def verify_imdb_data(ia: Cinemagoer, imdb_id: str, name: str, year: int) -> Tuple[bool, Optional[str]]:
     """Verify if the IMDb ID matches with the given name and year."""
     try:
         movie = ia.get_movie(imdb_id)
         if not movie:
-            return False
+            return False, None
         
         # Get movie title and year from IMDb
         imdb_title = movie.get('title')
         imdb_year = movie.get('year')
         
         # Compare title (case-insensitive) and year
-        if (imdb_title.lower() == name.lower() and 
-            (imdb_year == year or abs(imdb_year - year) <= 1)):
-            return True
+        # First, normalize both titles by removing ':' and extra spaces
+        normalized_name = re.sub(r'\s*:\s*', ' ', name.lower())
+        normalized_imdb = re.sub(r'\s*:\s*', ' ', imdb_title.lower())
         
+        if normalized_name == normalized_imdb and (imdb_year == year or abs(imdb_year - year) <= 1):
+            return True, None
+        
+        # If there's a mismatch, return the IMDb title for user verification
         logging.warning(f"IMDb mismatch - Folder: {name} ({year}), IMDb: {imdb_title} ({imdb_year})")
-        return False
+        return False, imdb_title
     except Exception as e:
         logging.error(f"Error verifying IMDb data: {str(e)}")
-        return False
+        return False, None
 
 def verify_movie_name(name: str, year: int) -> Tuple[Optional[str], Optional[str]]:
     """Verify movie name against IMDb database and return correct name and ID."""
@@ -224,10 +228,19 @@ def rename_movie_files(directory: str) -> Tuple[Dict[str, int], List[str], List[
         logging.error(f"Directory not found: {directory}")
         return {'processed': 0, 'renamed': 0, 'skipped': 0, 'errors': 0}, [], []
 
+    # Ask user about IMDb verification
+    print("\nDo you want to verify movie names and IMDb IDs?")
+    print("This will check folder names against the IMDb database and:")
+    print("- Verify existing IMDb IDs")
+    print("- Correct movie names if needed")
+    print("- Add IMDb IDs if missing")
+    verify_imdb = input("Verify with IMDb? (y/n): ").strip().lower() == 'y'
+    logging.info(f"IMDb verification {'enabled' if verify_imdb else 'disabled'}")
+
     stats = {'processed': 0, 'renamed': 0, 'skipped': 0, 'errors': 0}
     warnings = []
     skipped_items = []
-    ia = Cinemagoer()
+    ia = Cinemagoer() if verify_imdb else None
 
     for folder_name in os.listdir(directory):
         folder_path = os.path.join(directory, folder_name)
@@ -258,31 +271,55 @@ def rename_movie_files(directory: str) -> Tuple[Dict[str, int], List[str], List[
                 stats['skipped'] += 1
                 continue
 
-        # Check if folder already has IMDb ID and verify it
-        existing_imdb_id = extract_imdb_id(folder_name)
-        if existing_imdb_id:
-            if verify_imdb_data(ia, existing_imdb_id, media_name, year):
-                logging.info(f"Verified existing IMDb ID: tt{existing_imdb_id}")
-                verified_name = media_name
-                imdb_id = existing_imdb_id
-            else:
-                print(f"\nIMDb data mismatch for: {media_name} ({year})")
-                choice = input("Do you want to (s)kip this item or (c)ontinue with verification? (s/c): ").strip().lower()
-                if choice == 's':
-                    stats['skipped'] += 1
-                    continue
-                # If continue, fall through to normal verification process
-        
-        # Verify movie name with IMDb if needed
-        if not existing_imdb_id or not verify_imdb_data(ia, existing_imdb_id, media_name, year):
-            verified_name, imdb_id = verify_movie_name(media_name, year)
-            if not verified_name or not imdb_id:
-                print(f"\nCould not verify movie: {media_name} ({year})")
-                choice = input("Do you want to (s)kip this item or (c)ontinue with original name? (s/c): ").strip().lower()
-                if choice == 's':
-                    stats['skipped'] += 1
-                    continue
-                verified_name = media_name
+        verified_name = media_name
+        imdb_id = None
+
+        if verify_imdb:
+            # Check if folder already has IMDb ID and verify it
+            existing_imdb_id = extract_imdb_id(folder_name)
+            if existing_imdb_id:
+                matches, imdb_title = verify_imdb_data(ia, existing_imdb_id, media_name, year)
+                if matches:
+                    logging.info(f"Verified existing IMDb ID: tt{existing_imdb_id}")
+                    verified_name = media_name
+                    imdb_id = existing_imdb_id
+                else:
+                    if imdb_title:
+                        print(f"\nIMDb data mismatch for: {media_name} ({year})")
+                        print(f"IMDb title: {imdb_title}")
+                        print("\nOptions:")
+                        print("s - Skip this movie")
+                        print("i - Use IMDb title")
+                        print("e - Exit to main menu")
+                        choice = input("Enter your choice (s/i/e): ").strip().lower()
+                        if choice == 's':
+                            stats['skipped'] += 1
+                            continue
+                        elif choice == 'i':
+                            verified_name = sanitize_filename(imdb_title)
+                            imdb_id = existing_imdb_id
+                        else:  # choice == 'e'
+                            logging.info("User chose to exit to main menu")
+                            print("\nExiting to main menu.")
+                            return stats, skipped_items, warnings
+                    else:
+                        print(f"\nCould not verify IMDb data for: {media_name} ({year})")
+                        choice = input("Do you want to (s)kip this item or (c)ontinue with verification? (s/c): ").strip().lower()
+                        if choice == 's':
+                            stats['skipped'] += 1
+                            continue
+                        # If continue, fall through to normal verification process
+            
+            # Verify movie name with IMDb if needed
+            if not existing_imdb_id or not verify_imdb_data(ia, existing_imdb_id, media_name, year)[0]:
+                verified_name, imdb_id = verify_movie_name(media_name, year)
+                if not verified_name or not imdb_id:
+                    print(f"\nCould not verify movie: {media_name} ({year})")
+                    choice = input("Do you want to (s)kip this item or (c)ontinue with original name? (s/c): ").strip().lower()
+                    if choice == 's':
+                        stats['skipped'] += 1
+                        continue
+                    verified_name = media_name
 
         # Get files in the folder
         movie_file, subtitle_files, poster_files, other_files = get_movie_files(folder_path)

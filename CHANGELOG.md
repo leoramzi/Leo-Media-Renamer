@@ -2,6 +2,26 @@
 
 All notable changes to Leo Media Renamer will be documented in this file.
 
+## [0.0.5] - 2024-03-15
+
+### Added
+- New "Rename Movie - Files" feature:
+  - Renames movie files with quality information
+  - Automatically preserves poster files
+  - Renames matching subtitle files
+  - Optional cleanup of other files
+- Enhanced IMDb verification:
+  - Optional verification with user prompt
+  - Intelligent title comparison (ignores colon differences)
+  - Multiple options for mismatches:
+    * Skip current movie
+    * Use IMDb title
+    * Exit to main menu
+- Improved menu options:
+  - Renamed "Process Movies" to "Rename Movie - Folders"
+  - Added "Rename Movie - Files" as second option
+  - Renamed "Process TV Shows" to "TV Shows - Folders"
+
 ## [0.0.4] - 2024-03-15
 
 ### Added
