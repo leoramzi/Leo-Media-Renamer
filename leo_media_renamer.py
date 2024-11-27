@@ -182,13 +182,13 @@ def verify_movie_name(name: str, year: int) -> Tuple[Optional[str], Optional[str
         logging.error(f"Error verifying movie name: {str(e)}")
         return None, None
 
-def get_movie_files(folder_path: str) -> Tuple[Optional[str], List[str], List[str], List[str]]:
-    """Get movie file, subtitle files, poster files, and other files in the folder."""
+def get_movie_files(folder_path: str) -> Tuple[List[str], List[str], List[str], List[str]]:
+    """Get movie files, subtitle files, poster files, and other files in the folder."""
     movie_extensions = {'.mp4', '.mkv', '.avi', '.m4v', '.mov'}
     subtitle_extensions = {'.srt', '.sub', '.ass', '.ssa'}
     image_extensions = {'.jpg', '.jpeg', '.png', '.webp'}
     
-    movie_file = None
+    movie_files = []
     subtitle_files = []
     poster_files = []
     other_files = []
@@ -199,10 +199,7 @@ def get_movie_files(folder_path: str) -> Tuple[Optional[str], List[str], List[st
         
         if os.path.isfile(item_path):
             if ext in movie_extensions:
-                if movie_file:
-                    logging.warning(f"Multiple movie files found in {folder_path}")
-                    return None, [], [], []
-                movie_file = item
+                movie_files.append(item)
             elif ext in subtitle_extensions:
                 subtitle_files.append(item)
             elif ext in image_extensions and name_without_ext in ['poster', 'Poster']:
@@ -212,7 +209,7 @@ def get_movie_files(folder_path: str) -> Tuple[Optional[str], List[str], List[st
         else:
             other_files.append(item)
     
-    return movie_file, subtitle_files, poster_files, other_files
+    return movie_files, subtitle_files, poster_files, other_files
 
 def extract_year_from_filename(filename: str) -> Optional[int]:
     """Extract year from filename."""
@@ -222,25 +219,31 @@ def extract_year_from_filename(filename: str) -> Optional[int]:
         return int(match.group())
     return None
 
-def rename_movie_files(directory: str) -> Tuple[Dict[str, int], List[str], List[str]]:
-    """Process movie files in folders and rename them according to the specified format."""
+def rename_movies(directory: str) -> Tuple[Dict[str, int], List[str], List[str]]:
+    """Process movie folders and files with the new combined workflow."""
     if not os.path.exists(directory):
         logging.error(f"Directory not found: {directory}")
         return {'processed': 0, 'renamed': 0, 'skipped': 0, 'errors': 0}, [], []
 
-    # Ask user about IMDb verification
-    print("\nDo you want to verify movie names and IMDb IDs?")
-    print("This will check folder names against the IMDb database and:")
-    print("- Verify existing IMDb IDs")
-    print("- Correct movie names if needed")
-    print("- Add IMDb IDs if missing")
+    # Ask about IMDb ID addition
+    print("\nDo you want to add IMDb IDs to folder names if they're missing?")
+    add_imdb = input("Add IMDb IDs? (y/n): ").strip().lower() == 'y'
+    logging.info(f"IMDb ID addition {'enabled' if add_imdb else 'disabled'}")
+
+    # Ask about IMDb verification
+    print("\nDo you want to verify existing movie names and IMDb IDs?")
     verify_imdb = input("Verify with IMDb? (y/n): ").strip().lower() == 'y'
     logging.info(f"IMDb verification {'enabled' if verify_imdb else 'disabled'}")
+
+    # Ask about file renaming
+    print("\nDo you want to rename movie files inside the folders?")
+    rename_files = input("Rename files? (y/n): ").strip().lower() == 'y'
+    logging.info(f"File renaming {'enabled' if rename_files else 'disabled'}")
 
     stats = {'processed': 0, 'renamed': 0, 'skipped': 0, 'errors': 0}
     warnings = []
     skipped_items = []
-    ia = Cinemagoer() if verify_imdb else None
+    ia = Cinemagoer() if (add_imdb or verify_imdb) else None
 
     for folder_name in os.listdir(directory):
         folder_path = os.path.join(directory, folder_name)
@@ -253,31 +256,20 @@ def rename_movie_files(directory: str) -> Tuple[Dict[str, int], List[str], List[
         # Get movie name and year from folder name
         media_name, year = parse_media_folder(folder_name)
         if not media_name or not year:
-            # Try to extract from filename if folder name doesn't match pattern
-            movie_file, _, _, _ = get_movie_files(folder_path)
-            if movie_file:
-                year = extract_year_from_filename(movie_file)
-                if year:
-                    media_name = re.sub(r'[._]', ' ', movie_file[:movie_file.find(str(year))]).strip()
-                    media_name = re.sub(r'\s+', ' ', media_name)
-                else:
-                    logging.warning(f"Could not extract year from: {folder_name}")
-                    warnings.append(f"No year found: {folder_name}")
-                    stats['skipped'] += 1
-                    continue
-            else:
-                logging.warning(f"Invalid folder format and no movie file: {folder_name}")
-                warnings.append(f"Invalid format: {folder_name}")
-                stats['skipped'] += 1
-                continue
+            logging.warning(f"Invalid folder format: {folder_name}")
+            warnings.append(f"Invalid format: {folder_name}")
+            stats['skipped'] += 1
+            continue
 
         verified_name = media_name
         imdb_id = None
+        folder_renamed = False
 
-        if verify_imdb:
-            # Check if folder already has IMDb ID and verify it
+        # Handle IMDb verification and ID addition
+        if verify_imdb or add_imdb:
             existing_imdb_id = extract_imdb_id(folder_name)
-            if existing_imdb_id:
+            
+            if existing_imdb_id and verify_imdb:
                 matches, imdb_title = verify_imdb_data(ia, existing_imdb_id, media_name, year)
                 if matches:
                     logging.info(f"Verified existing IMDb ID: tt{existing_imdb_id}")
@@ -287,115 +279,138 @@ def rename_movie_files(directory: str) -> Tuple[Dict[str, int], List[str], List[
                     if imdb_title:
                         print(f"\nIMDb data mismatch for: {media_name} ({year})")
                         print(f"IMDb title: {imdb_title}")
-                        print("\nOptions:")
-                        print("s - Skip this movie")
-                        print("i - Use IMDb title")
-                        print("e - Exit to main menu")
-                        choice = input("Enter your choice (s/i/e): ").strip().lower()
+                        choice = input("Use IMDb title? (y/n/s=skip): ").strip().lower()
                         if choice == 's':
                             stats['skipped'] += 1
                             continue
-                        elif choice == 'i':
+                        elif choice == 'y':
                             verified_name = sanitize_filename(imdb_title)
                             imdb_id = existing_imdb_id
-                        else:  # choice == 'e'
-                            logging.info("User chose to exit to main menu")
-                            print("\nExiting to main menu.")
-                            return stats, skipped_items, warnings
-                    else:
-                        print(f"\nCould not verify IMDb data for: {media_name} ({year})")
-                        choice = input("Do you want to (s)kip this item or (c)ontinue with verification? (s/c): ").strip().lower()
-                        if choice == 's':
-                            stats['skipped'] += 1
-                            continue
-                        # If continue, fall through to normal verification process
+                            folder_renamed = True
             
-            # Verify movie name with IMDb if needed
-            if not existing_imdb_id or not verify_imdb_data(ia, existing_imdb_id, media_name, year)[0]:
-                verified_name, imdb_id = verify_movie_name(media_name, year)
-                if not verified_name or not imdb_id:
-                    print(f"\nCould not verify movie: {media_name} ({year})")
-                    choice = input("Do you want to (s)kip this item or (c)ontinue with original name? (s/c): ").strip().lower()
-                    if choice == 's':
+            if not imdb_id and add_imdb:
+                verified_name, new_imdb_id = verify_movie_name(media_name, year)
+                if new_imdb_id:
+                    imdb_id = new_imdb_id
+                    folder_renamed = True
+                else:
+                    print(f"\nCould not find IMDb match for: {media_name} ({year})")
+                    choice = input("Skip this movie? (y/n): ").strip().lower()
+                    if choice == 'y':
                         stats['skipped'] += 1
                         continue
-                    verified_name = media_name
 
-        # Get files in the folder
-        movie_file, subtitle_files, poster_files, other_files = get_movie_files(folder_path)
-        
-        if not movie_file:
-            logging.warning(f"No movie file found in {folder_name}")
-            warnings.append(f"No movie file or multiple movie files in: {folder_name}")
-            stats['skipped'] += 1
-            continue
-
-        # Detect quality and ask for input only if detection fails
-        quality = detect_quality(movie_file)
-        if not quality:
-            print(f"\nCould not detect quality for movie: {movie_file}")
-            choice = input("Do you want to (s)kip this item or (i)nput quality manually? (s/i): ").strip().lower()
-            if choice == 's':
-                stats['skipped'] += 1
-                continue
-            elif choice == 'i':
-                quality = get_quality_from_user()
-            else:
-                print("Invalid choice, skipping...")
-                stats['skipped'] += 1
+        # Rename folder if needed
+        if folder_renamed or (imdb_id and not extract_imdb_id(folder_name)):
+            new_folder_name = f"{verified_name} ({year})"
+            if imdb_id:
+                new_folder_name += f" {{tt{imdb_id}}}"
+            new_folder_path = os.path.join(directory, new_folder_name)
+            
+            try:
+                os.rename(folder_path, new_folder_path)
+                logging.info(f"Renamed folder: {folder_name} -> {new_folder_name}")
+                folder_path = new_folder_path
+                stats['renamed'] += 1
+            except Exception as e:
+                logging.error(f"Error renaming folder {folder_name}: {str(e)}")
+                warnings.append(f"Folder rename error: {folder_name}")
+                stats['errors'] += 1
                 continue
 
-        if not quality:  # Double check we have a quality before proceeding
-            logging.warning(f"No quality determined for: {movie_file}")
-            warnings.append(f"No quality determined: {movie_file}")
-            stats['skipped'] += 1
-            continue
+        # Handle file renaming if enabled
+        if rename_files:
+            movie_files, subtitle_files, poster_files, other_files = get_movie_files(folder_path)
+            
+            if not movie_files:
+                logging.warning(f"No movie files found in {folder_name}")
+                warnings.append(f"No movie files: {folder_name}")
+                continue
 
-        # Create new movie filename
-        _, ext = os.path.splitext(movie_file)
-        new_movie_name = f"{verified_name} ({year}) - {quality}{ext}"
-        old_movie_path = os.path.join(folder_path, movie_file)
-        new_movie_path = os.path.join(folder_path, new_movie_name)
+            # Handle multiple movie files
+            if len(movie_files) > 1:
+                print(f"\nMultiple movie files found in {folder_name}:")
+                for idx, movie_file in enumerate(movie_files, 1):
+                    print(f"{idx}. {movie_file}")
+                
+                print("\nOptions:")
+                print("1. Attempt to rename all files")
+                print("2. Skip this movie")
+                choice = input("Enter your choice (1/2): ").strip()
+                
+                if choice == "2":
+                    logging.info(f"Skipping multiple movie files in: {folder_name}")
+                    warnings.append(f"Skipped multiple files: {folder_name}")
+                    stats['skipped'] += 1
+                    continue
 
-        try:
-            # Rename movie file
-            os.rename(old_movie_path, new_movie_path)
-            logging.info(f"Renamed movie file: {movie_file} -> {new_movie_name}")
-            stats['renamed'] += 1
+            # Process each movie file
+            for movie_file in movie_files:
+                # Detect quality
+                quality = detect_quality(movie_file)
+                if not quality:
+                    print(f"\nCould not detect quality for movie: {movie_file}")
+                    print("Options:")
+                    print("1. Input quality manually")
+                    print("2. Skip this file")
+                    choice = input("Enter your choice (1/2): ").strip()
+                    
+                    if choice == "1":
+                        quality = get_quality_from_user()
+                    else:
+                        logging.warning(f"Skipping file due to unknown quality: {movie_file}")
+                        continue
 
-            # Rename subtitle files
-            for subtitle in subtitle_files:
-                _, sub_ext = os.path.splitext(subtitle)
-                new_sub_name = f"{verified_name} ({year}) - {quality}{sub_ext}"
-                old_sub_path = os.path.join(folder_path, subtitle)
-                new_sub_path = os.path.join(folder_path, new_sub_name)
-                os.rename(old_sub_path, new_sub_path)
-                logging.info(f"Renamed subtitle: {subtitle} -> {new_sub_name}")
+                if quality:
+                    # Rename movie file
+                    _, ext = os.path.splitext(movie_file)
+                    new_movie_name = f"{verified_name} ({year}) - {quality}{ext}"
+                    try:
+                        os.rename(
+                            os.path.join(folder_path, movie_file),
+                            os.path.join(folder_path, new_movie_name)
+                        )
+                        logging.info(f"Renamed movie file: {movie_file} -> {new_movie_name}")
+                        
+                        # Find and rename matching subtitle files
+                        movie_name_without_ext = os.path.splitext(movie_file)[0]
+                        matching_subtitles = [
+                            sub for sub in subtitle_files
+                            if os.path.splitext(sub)[0].startswith(movie_name_without_ext)
+                        ]
+                        
+                        for subtitle in matching_subtitles:
+                            _, sub_ext = os.path.splitext(subtitle)
+                            new_sub_name = f"{verified_name} ({year}) - {quality}{sub_ext}"
+                            os.rename(
+                                os.path.join(folder_path, subtitle),
+                                os.path.join(folder_path, new_sub_name)
+                            )
+                            logging.info(f"Renamed subtitle: {subtitle} -> {new_sub_name}")
+                            subtitle_files.remove(subtitle)  # Remove processed subtitle
 
-            # Handle other files (excluding poster files)
+                    except Exception as e:
+                        logging.error(f"Error processing file {movie_file}: {str(e)}")
+                        warnings.append(f"File processing error: {movie_file}")
+                        stats['errors'] += 1
+
+            # Handle remaining files
             if other_files:
                 print(f"\nThe following items in '{folder_name}' will be deleted:")
                 for item in other_files:
                     print(f"- {item}")
-                choice = input("Do you want to proceed with deletion? (y/n): ").strip().lower()
-                if choice == 'y':
+                if input("Proceed with deletion? (y/n): ").strip().lower() == 'y':
                     for item in other_files:
                         item_path = os.path.join(folder_path, item)
-                        if os.path.isfile(item_path):
-                            os.remove(item_path)
-                        else:
-                            import shutil
-                            shutil.rmtree(item_path)
-                    logging.info(f"Cleaned up {len(other_files)} items in {folder_name}")
-
-            # Log preserved poster files
-            if poster_files:
-                logging.info(f"Preserved {len(poster_files)} poster files: {', '.join(poster_files)}")
-
-        except Exception as e:
-            logging.error(f"Error processing {folder_name}: {str(e)}")
-            warnings.append(f"Error in {folder_name}: {str(e)}")
-            stats['errors'] += 1
+                        try:
+                            if os.path.isfile(item_path):
+                                os.remove(item_path)
+                            else:
+                                import shutil
+                                shutil.rmtree(item_path)
+                        except Exception as e:
+                            logging.error(f"Error deleting {item}: {str(e)}")
+                    logging.info(f"Cleaned up {len(other_files)} items")
 
     return stats, skipped_items, warnings
 
@@ -407,215 +422,26 @@ def parse_media_folder(folder_name):
         return match.group(1).strip(), int(match.group(2))
     return None, None
 
-def get_user_decision(folder_name):
-    """Ask user whether to skip or stop when an error occurs."""
-    while True:
-        print(f"\nCould not find IMDb match for: {folder_name}")
-        choice = input("Do you want to (s)kip this item or st(o)p the process? (s/o): ").strip().lower()
-        if choice in ['s', 'o']:
-            return choice
-        print("Invalid choice. Please enter 's' to skip or 'o' to stop.")
-
-def get_batch_size():
-    """Get the number of titles to process in each batch."""
-    while True:
-        try:
-            size = input("\nEnter batch size (0 for all at once): ").strip()
-            batch_size = int(size)
-            if batch_size < 0:
-                print("Please enter a non-negative number.")
-                continue
-            return batch_size
-        except ValueError:
-            print("Please enter a valid number.")
-
-def should_continue():
-    """Ask user if they want to process the next batch."""
-    while True:
-        choice = input("\nDo you want to process the next batch? (y/n): ").strip().lower()
-        if choice in ['y', 'n']:
-            return choice == 'y'
-        print("Please enter 'y' for yes or 'n' for no.")
-
-def get_imdb_id(name, year, media_type='movie'):
-    """Search IMDb for media and return its ID."""
-    ia = Cinemagoer()
-    try:
-        if media_type == 'movie':
-            # Search for movies
-            results = ia.search_movie(name)
-            logging.debug(f"Found {len(results)} movie results for: {name}")
-            
-            # Filter for movies only
-            results = [r for r in results if r.get('kind') == 'movie']
-        else:
-            # Search for TV series
-            results = ia.search_movie(name)
-            logging.debug(f"Found {len(results)} initial results for TV show: {name}")
-            
-            # Filter for TV series only and log each result for debugging
-            tv_results = []
-            for r in results:
-                kind = r.get('kind', 'unknown')
-                logging.debug(f"Found result: {r.get('title')} ({r.get('year', 'N/A')}) - Type: {kind}")
-                if kind in ['tv series', 'tv mini series']:
-                    tv_results.append(r)
-            results = tv_results
-            
-            logging.debug(f"Filtered to {len(results)} TV series results")
-        
-        # Log all potential matches
-        for item in results:
-            logging.debug(f"Potential match: {item.get('title')} ({item.get('year', 'N/A')}) - {item.get('kind', 'unknown')}")
-        
-        # Try exact year match first
-        for item in results:
-            if item.get('year') == year:
-                logging.info(f"Found exact year match: {item.get('title')} ({item.get('year')}) - tt{item.getID()}")
-                return item.getID()
-        
-        # If no exact year match, check for close matches and log them
-        close_matches = [item for item in results if abs(item.get('year', 0) - year) <= 1]
-        if close_matches:
-            logging.info(f"Found close year match: {close_matches[0].get('title')} ({close_matches[0].get('year')}) - tt{close_matches[0].getID()}")
-            return close_matches[0].getID()
-        
-        logging.warning(f"No match found for: {name} ({year}) - Type: {media_type}")
-        return None
-    except Exception as e:
-        logging.error(f"Error searching for {name}: {str(e)}")
-        return None
-
-def rename_media_folders(directory, media_type='movie', batch_size=0) -> Tuple[Dict[str, int], List[str], List[str]]:
-    """Process media folders in the given directory with batch support."""
-    if not os.path.exists(directory):
-        logging.error(f"Directory not found: {directory}")
-        return {'processed': 0, 'renamed': 0, 'skipped': 0, 'errors': 0}, [], []
-
-    logging.info(f"Starting to process {media_type} folders in: {directory}")
-    
-    # Get all folders to process
-    all_folders = [f for f in os.listdir(directory) if os.path.isdir(os.path.join(directory, f))]
-    total_folders = len(all_folders)
-    
-    # Initialize statistics and tracking lists
-    stats = {
-        'processed': 0,
-        'renamed': 0,
-        'skipped': 0,
-        'errors': 0
-    }
-    skipped_items = []
-    warnings = []
-    
-    # Process in batches if batch_size > 0, otherwise process all at once
-    start_idx = 0
-    while start_idx < total_folders:
-        if batch_size > 0:
-            end_idx = min(start_idx + batch_size, total_folders)
-            current_batch = all_folders[start_idx:end_idx]
-            print(f"\nProcessing batch {(start_idx // batch_size) + 1} "
-                  f"(items {start_idx + 1} to {end_idx} of {total_folders})")
-        else:
-            current_batch = all_folders[start_idx:]
-            end_idx = total_folders
-
-        # Process current batch
-        for folder_name in current_batch:
-            folder_path = os.path.join(directory, folder_name)
-            stats['processed'] += 1
-            
-            # Skip if already has IMDb ID
-            if "{" in folder_name:
-                logging.info(f"Skipping already tagged folder: {folder_name}")
-                skipped_items.append(f"Already tagged: {folder_name}")
-                stats['skipped'] += 1
-                continue
-
-            # Parse name and year
-            media_name, year = parse_media_folder(folder_name)
-            if not media_name or not year:
-                logging.warning(f"Skipping {folder_name} - Invalid format")
-                warnings.append(f"Invalid format: {folder_name}")
-                stats['skipped'] += 1
-                continue
-
-            logging.info(f"Processing: {media_name} ({year})")
-            
-            # Get IMDb ID
-            imdb_id = get_imdb_id(media_name, year, media_type)
-            if not imdb_id:
-                # Ask user what to do
-                decision = get_user_decision(folder_name)
-                logging.info(f"User decided to {'skip' if decision == 's' else 'stop'} for: {folder_name}")
-                
-                if decision == 'o':
-                    logging.info("User chose to stop the process")
-                    print("\nStopping the process as requested.")
-                    warnings.append(f"No IMDb match (process stopped): {folder_name}")
-                    return stats, skipped_items, warnings
-                
-                warnings.append(f"No IMDb match (skipped): {folder_name}")
-                stats['skipped'] += 1
-                continue
-
-            # Create new folder name
-            new_name = f"{folder_name} {{tt{imdb_id}}}"
-            new_path = os.path.join(directory, new_name)
-
-            # Rename folder
-            try:
-                os.rename(folder_path, new_path)
-                logging.info(f"Successfully renamed: {folder_name} -> {new_name}")
-                stats['renamed'] += 1
-            except Exception as e:
-                logging.error(f"Error renaming {folder_name}: {str(e)}")
-                warnings.append(f"Rename error: {folder_name} ({str(e)})")
-                stats['errors'] += 1
-
-        # Print batch statistics
-        if batch_size > 0:
-            print(f"\nBatch {(start_idx // batch_size) + 1} complete:")
-            print(f"Processed: {end_idx - start_idx}")
-            print(f"Renamed: {stats['renamed']}")
-            print(f"Skipped: {stats['skipped']}")
-            print(f"Errors: {stats['errors']}")
-            
-            # Ask to continue if there are more items
-            if end_idx < total_folders:
-                if not should_continue():
-                    logging.info("User chose not to process next batch")
-                    print("\nStopping as requested.")
-                    break
-
-        start_idx = end_idx
-
-    return stats, skipped_items, warnings
-
 def get_media_type() -> Optional[str]:
     """Get user's choice of media type."""
     while True:
         print("\nWhat would you like to do?")
-        print("1. Rename Movie - Folders")
-        print("2. Rename Movie - Files")
-        print("3. TV Shows - Folders")
-        print("4. Exit")
-        choice = input("Enter your choice (1-4): ").strip()
+        print("1. Rename Movies")
+        print("2. TV Shows - Folders")
+        print("3. Exit")
+        choice = input("Enter your choice (1-3): ").strip()
         
         if choice == "1":
-            logging.info("User selected: Movie Folders")
-            return "movie_folders"
+            logging.info("User selected: Movies")
+            return "movies"
         elif choice == "2":
-            logging.info("User selected: Movie Files")
-            return "movie_files"
-        elif choice == "3":
             logging.info("User selected: TV Shows")
             return "tv"
-        elif choice == "4":
+        elif choice == "3":
             logging.info("User chose to exit")
             return None
         else:
-            print("Invalid choice. Please enter 1, 2, 3, or 4.")
+            print("Invalid choice. Please enter 1, 2, or 3.")
 
 def get_media_path():
     """Get media library path from user."""
@@ -630,7 +456,7 @@ def get_media_path():
 def print_report(stats: Dict[str, int], skipped_items: List[str], warnings: List[str]):
     """Print the operation report with skipped items and warnings."""
     print("\n=== Operation Report ===")
-    print(f"Total folders processed: {stats['processed']}")
+    print(f"Total items processed: {stats['processed']}")
     print(f"Successfully renamed: {stats['renamed']}")
     print(f"Skipped: {stats['skipped']}")
     print(f"Errors: {stats['errors']}")
@@ -646,15 +472,15 @@ def print_report(stats: Dict[str, int], skipped_items: List[str], warnings: List
             print(f"- {warning}")
 
 def get_next_action() -> bool:
-    """Ask user if they want to start over or exit."""
+    """Ask user if they want to return to main menu or exit."""
     while True:
         print("\nWhat would you like to do next?")
-        print("1. Start a new renaming session")
+        print("1. Main Menu")
         print("2. Exit")
         choice = input("Enter your choice (1-2): ").strip()
         
         if choice == "1":
-            logging.info("User chose to start a new session")
+            logging.info("User chose to return to main menu")
             return True
         elif choice == "2":
             logging.info("User chose to exit")
@@ -681,19 +507,15 @@ def main():
             # Get media library path
             media_path = get_media_path()
             
-            if media_type == "movie_files":
-                # Process movie files
-                stats, skipped_items, warnings = rename_movie_files(media_path)
+            if media_type == "movies":
+                # Process movies with combined workflow
+                stats, skipped_items, warnings = rename_movies(media_path)
             else:
-                # Get batch size for folder processing
-                batch_size = get_batch_size()
-                logging.info(f"Batch size set to: {batch_size}")
-                
-                # Process the media folders
+                # Process TV shows
                 stats, skipped_items, warnings = rename_media_folders(
                     media_path,
-                    "movie" if media_type == "movie_folders" else "tv",
-                    batch_size
+                    "tv",
+                    get_batch_size()
                 )
             
             # Print the final report
